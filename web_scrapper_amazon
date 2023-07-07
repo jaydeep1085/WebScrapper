@@ -1,0 +1,66 @@
+import csv
+import requests
+from bs4 import BeautifulSoup
+
+# Function to scrape product listing pages
+def scrape_product_listing(url):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0;Win64) AppleWebkit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'}
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.content, 'html.parser')
+    products = soup.select('[data-component-type="s-search-result"]')
+
+    for product in products:
+        product_url_element = product.select_one('.a-link-normal.a-text-normal')
+        if product_url_element:
+            product_url = "https://www.amazon.in" + product_url_element['href']
+            product_name = product.select_one('.a-size-medium.a-color-base.a-text-normal').text.strip()
+            product_price = product.select_one('.a-offscreen').text.strip()
+            product_rating = product.select_one('.a-icon-alt').text.strip().split()[0]
+            product_reviews = product.select_one('.a-size-base').text.strip().replace(',', '')
+
+            # Scrape product details
+            scrape_product_details(product_url, product_name, product_price, product_rating, product_reviews)
+
+# Function to scrape product details
+def scrape_product_details(url, name, price, rating, reviews):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0;Win64) AppleWebkit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'}
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.content, 'html.parser')
+
+    description = soup.find('div', {'id': 'feature-bullets'}).get_text(separator=' ').strip() if soup.find('div', {'id': 'feature-bullets'}) else ''
+
+    asin_element = soup.find('div', string='ASIN')
+    asin = asin_element.find_next('div').get_text(strip=True) if asin_element else ''
+
+    # Append the scraped data to the CSV file
+    append_to_csv([url, name, price, rating, reviews, description, asin])
+
+# Function to append data to a CSV file
+def append_to_csv(data):
+    with open('scraped_data.csv', 'a', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow(data)
+
+# Main function to orchestrate the scraping process
+def scrape_amazon_products():
+    for page in range(1, 21):
+        url = f'https://www.amazon.in/s?k=bags&crid=2M096C61O4MLT&qid=1653308124&sprefix=ba%2Caps%2C283&ref=sr_pg_{page}'
+        scrape_product_listing(url)
+
+# Create the CSV file and write the header
+with open('scraped_data.csv', 'w', newline='', encoding='utf-8') as file:
+    writer = csv.writer(file)
+    writer.writerow(['URL', 'Name', 'Price', 'Rating', 'Reviews', 'Description', 'ASIN'])
+
+# Run the scraping process
+scrape_amazon_products()
+
+# Read and print the exported data from the CSV file
+with open('scraped_data.csv', 'r', newline='', encoding='utf-8') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        print(row)
+
+print("Data scraping and export complete.")
